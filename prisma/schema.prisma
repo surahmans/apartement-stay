@@ -1,0 +1,183 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  phone         String?
+  role          Role      @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Customer bookings
+  bookings      Booking[]
+  
+  // Reseller data
+  reseller      Reseller?
+  
+  @@map("users")
+}
+
+model Reseller {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  referralCode  String    @unique
+  isApproved    Boolean   @default(false)
+  commissionRate Float    @default(10.0) // Percentage
+  totalEarnings Float     @default(0)
+  totalClicks   Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Bookings referred by this reseller
+  referredBookings Booking[]
+  commissions      Commission[]
+  
+  @@map("resellers")
+}
+
+model Apartment {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  type        String    // Studio, 1BR, 2BR, etc.
+  pricePerNight Float
+  maxGuests   Int
+  area        Float     // in sqm
+  floor       Int?
+  
+  // Amenities as JSON
+  amenities   String    // JSON string array
+  
+  // Images as JSON
+  images      String    // JSON string array of image URLs
+  
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  bookings    Booking[]
+  
+  @@map("apartments")
+}
+
+model Booking {
+  id            String      @id @default(cuid())
+  bookingCode   String      @unique
+  
+  // Customer info
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  
+  // Apartment info
+  apartmentId   String
+  apartment     Apartment   @relation(fields: [apartmentId], references: [id])
+  
+  // Booking details
+  checkIn       DateTime
+  checkOut      DateTime
+  guests        Int
+  totalNights   Int
+  totalAmount   Float
+  
+  // Status
+  status        BookingStatus @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  
+  // Guest details
+  guestName     String
+  guestEmail    String
+  guestPhone    String
+  
+  // Special requests
+  specialRequests String?
+  
+  // Reseller reference
+  resellerId    String?
+  reseller      Reseller?   @relation(fields: [resellerId], references: [id])
+  
+  // Payment info
+  paymentMethod String?
+  paymentId     String?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  commission    Commission?
+  
+  @@map("bookings")
+}
+
+model Commission {
+  id            String    @id @default(cuid())
+  
+  resellerId    String
+  reseller      Reseller  @relation(fields: [resellerId], references: [id])
+  
+  bookingId     String    @unique
+  booking       Booking   @relation(fields: [bookingId], references: [id])
+  
+  amount        Float
+  rate          Float     // Commission rate at time of booking
+  status        CommissionStatus @default(PENDING)
+  
+  paidAt        DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("commissions")
+}
+
+model AvailabilityBlock {
+  id            String    @id @default(cuid())
+  apartmentId   String
+  startDate     DateTime
+  endDate       DateTime
+  reason        String    // "booked", "maintenance", "blocked"
+  
+  createdAt     DateTime  @default(now())
+  
+  @@map("availability_blocks")
+}
+
+enum Role {
+  CUSTOMER
+  RESELLER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
